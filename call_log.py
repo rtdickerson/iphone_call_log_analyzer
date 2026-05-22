@@ -331,7 +331,7 @@ def cmd_weekly(args) -> None:
             b["out_secs"]  += secs
         # missed calls have no duration; omit from this report
 
-    writer = csv.writer(sys.stdout)
+    writer = csv.writer(sys.stdout, lineterminator='\n')
     writer.writerow([
         "week_start", "week_end",
         "incoming_calls", "incoming_duration",
@@ -398,7 +398,7 @@ def cmd_weekly_callers(args) -> None:
         conn.close()
         return
 
-    writer = csv.writer(sys.stdout)
+    writer = csv.writer(sys.stdout, lineterminator='\n')
     writer.writerow([
         "week_start", "week_end", "contact",
         "incoming_calls", "incoming_duration",
