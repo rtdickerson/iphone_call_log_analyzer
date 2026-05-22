@@ -357,6 +357,78 @@ def cmd_weekly(args) -> None:
     conn.close()
 
 
+# ── weekly_callers ────────────────────────────────────────────────────────────
+
+def cmd_weekly_callers(args) -> None:
+    conn = get_conn(args.db)
+    init_db(conn)
+
+    rows = conn.execute(
+        "SELECT call_type, date, duration, contact FROM calls ORDER BY date"
+    ).fetchall()
+
+    if not rows:
+        print("No records found.", file=sys.stderr)
+        conn.close()
+        return
+
+    # bucket by (week_start, contact)
+    buckets: dict[tuple, dict] = {}
+    first_week = last_week = None
+
+    for r in rows:
+        dt = _parse_date(r["date"])
+        if dt is None:
+            continue
+        ws = _week_start(dt)
+        if first_week is None or ws < first_week:
+            first_week = ws
+        if last_week is None or ws > last_week:
+            last_week = ws
+
+        key = (ws, r["contact"])
+        if key not in buckets:
+            buckets[key] = {"in_calls": 0, "in_secs": 0, "out_calls": 0, "out_secs": 0}
+        b = buckets[key]
+        ct = r["call_type"].strip().lower()
+        secs = _duration_to_seconds(r["duration"])
+        if ct == "incoming":
+            b["in_calls"] += 1
+            b["in_secs"]  += secs
+        elif ct == "outgoing":
+            b["out_calls"] += 1
+            b["out_secs"]  += secs
+
+    if first_week is None:
+        print("No parseable dates found.", file=sys.stderr)
+        conn.close()
+        return
+
+    writer = csv.writer(sys.stdout)
+    writer.writerow([
+        "week_start", "week_end", "contact",
+        "incoming_calls", "incoming_duration",
+        "outgoing_calls", "outgoing_duration",
+    ])
+
+    week = first_week
+    while week <= last_week:
+        week_end = (week + timedelta(days=6)).strftime("%Y-%m-%d")
+        week_str = week.strftime("%Y-%m-%d")
+        # only emit contacts that had at least one incoming or outgoing call
+        active = {k: v for k, v in buckets.items()
+                  if k[0] == week and (v["in_calls"] or v["out_calls"])}
+        for (_, contact), b in sorted(active.items(), key=lambda x: x[0][1]):
+            writer.writerow([
+                week_str, week_end, contact,
+                b["in_calls"], _fmt_duration(b["in_secs"]),
+                b["out_calls"], _fmt_duration(b["out_secs"]),
+            ])
+        week += timedelta(weeks=1)
+
+    conn.close()
+
+
 # ── graph ─────────────────────────────────────────────────────────────────────
 
 def _mermaid_id(index: int) -> str:
@@ -457,6 +529,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_history.add_argument("-n", "--limit", type=int, default=50, metavar="N",
                            help="Max rows to show (default: 50)")
     p_history.set_defaults(func=cmd_history)
+
+    # weekly_callers
+    p_wc = sub.add_parser("weekly_callers",
+                          help="Per-week active-contact breakdown (CSV output)")
+    p_wc.set_defaults(func=cmd_weekly_callers)
 
     # graph
     p_graph = sub.add_parser("graph", help="Mermaid flowchart of iPhone ↔ caller connections")
