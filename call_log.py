@@ -111,13 +111,7 @@ def _duration_to_seconds(duration: str) -> int:
 
 
 def _fmt_duration(seconds: int) -> str:
-    h, rem = divmod(seconds, 3600)
-    m, s = divmod(rem, 60)
-    if h:
-        return f"{h}h {m:02d}m {s:02d}s"
-    if m:
-        return f"{m}m {s:02d}s"
-    return f"{s}s"
+    return f"{seconds / 60:.1f}"
 
 
 def cmd_stats(args) -> None:
@@ -144,10 +138,10 @@ def cmd_stats(args) -> None:
                  conn.execute("SELECT duration FROM calls").fetchall()]
     total_secs = sum(durations)
     nonzero = [d for d in durations if d > 0]
-    print(f"\n  Total talk time : {_fmt_duration(total_secs)}")
+    print(f"\n  Total talk time : {_fmt_duration(total_secs)} min")
     if nonzero:
-        print(f"  Avg call (>0s)  : {_fmt_duration(int(sum(nonzero)/len(nonzero)))}")
-        print(f"  Longest call    : {_fmt_duration(max(nonzero))}")
+        print(f"  Avg call (>0s)  : {_fmt_duration(int(sum(nonzero)/len(nonzero)))} min")
+        print(f"  Longest call    : {_fmt_duration(max(nonzero))} min")
 
     first, last = conn.execute("SELECT MIN(date), MAX(date) FROM calls").fetchone()
     print(f"\n  Date range : {first}  →  {last}")
