@@ -145,6 +145,23 @@ def cmd_stats(args) -> None:
 
     first, last = conn.execute("SELECT MIN(date), MAX(date) FROM calls").fetchone()
     print(f"\n  Date range : {first}  →  {last}")
+
+    contact_rows = conn.execute(
+        "SELECT contact, duration FROM calls ORDER BY contact"
+    ).fetchall()
+
+    # aggregate talk time per contact in Python (duration stored as text)
+    contact_secs: dict[str, int] = {}
+    for r in contact_rows:
+        contact_secs.setdefault(r["contact"], 0)
+        contact_secs[r["contact"]] += _duration_to_seconds(r["duration"])
+
+    print(f"\n  Unique contacts : {len(contact_secs):,}")
+    print(f"\n  {'Contact':<30} {'Talk time (min)':>14}")
+    print(f"  {'─'*46}")
+    for contact, secs in sorted(contact_secs.items(), key=lambda x: x[1], reverse=True):
+        print(f"  {contact:<30} {_fmt_duration(secs):>14}")
+
     print(f"{'─'*40}\n")
     conn.close()
 
