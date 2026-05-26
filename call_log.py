@@ -420,6 +420,7 @@ def cmd_weekly_callers(args) -> None:
         "week_start", "week_end", "contact",
         "incoming_calls", "incoming_duration",
         "outgoing_calls", "outgoing_duration",
+        "out_in_ratio", "driver",
     ])
 
     week = first_week
@@ -430,10 +431,27 @@ def cmd_weekly_callers(args) -> None:
         active = {k: v for k, v in buckets.items()
                   if k[0] == week and (v["in_calls"] or v["out_calls"])}
         for (_, contact), b in sorted(active.items(), key=lambda x: x[0][1]):
+            ins, outs = b["in_secs"], b["out_secs"]
+            if ins == 0 and outs == 0:
+                ratio, driver = 0.0, 0
+            elif ins == 0:
+                ratio, driver = None, 1   # subject only — outgoing with no incoming
+            elif outs == 0:
+                ratio, driver = 0.0, -1  # caller only — incoming with no outgoing
+            else:
+                ratio = outs / ins
+                if ratio > 1.5:
+                    driver = 1
+                elif ratio < 0.667:
+                    driver = -1
+                else:
+                    driver = 0
             writer.writerow([
                 week_str, week_end, contact,
                 b["in_calls"], _fmt_duration(b["in_secs"]),
                 b["out_calls"], _fmt_duration(b["out_secs"]),
+                "" if ratio is None else f"{ratio:.2f}",
+                driver,
             ])
         week += timedelta(weeks=1)
 
